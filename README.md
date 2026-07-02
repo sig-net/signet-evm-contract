@@ -113,7 +113,9 @@ Production deployments should pass the MPC network's admin address and the requi
 ```text
 contracts/ChainSignatures.sol   The signing contract (event bus + deposit sink)
 contracts/ProxyTestCaller.sol   Consumer-contract example (Solana proxy-test-cpi analog)
-test/                           node:test + viem specs, one per flow
+examples/Erc20Vault.sol         Cross-chain ERC-20 vault example (EVM <-> EVM) — see examples/README.md
+examples/EVMTxBuilder.sol       On-chain EIP-1559 RLP builder (vendored from signet.sol)
+test/                           node:test + viem specs, one per flow (test/examples/ covers the vault)
 test-utils/                     Mock MPC signer + request-id helpers (signet.js golden-checked)
 ignition/modules/               Hardhat Ignition deployment module
 ```

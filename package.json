@@ -14,6 +14,7 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@eth-optimism/contracts": "^0.6.0",
     "@noble/curves": "^2.2.0",
     "@nomicfoundation/hardhat-ignition": "^3.0.2",
     "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",

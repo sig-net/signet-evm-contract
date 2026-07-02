@@ -6,6 +6,11 @@ dotenv.config();
 
 const config: HardhatUserConfig = {
   plugins: [hardhatToolboxViemPlugin],
+  paths: {
+    sources: {
+      solidity: ['contracts', 'examples'],
+    },
+  },
   solidity: {
     profiles: {
       default: {
