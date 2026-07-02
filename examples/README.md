@@ -64,7 +64,10 @@ requestId = keccak256(abi.encodePacked(
 ### Running the example tests
 
 ```bash
-pnpm test   # includes test/examples/erc20-vault.test.ts
+pnpm test   # includes test/examples/erc20-vault.test.ts + erc20-vault.e2e.test.ts
 ```
 
-The tests exercise the full lifecycle with the in-process mock MPC (`test-utils/signingUtils.ts`): deposit → sign → (simulated) broadcast → outcome → claim, withdrawal with success and refund paths, plus signature-forgery and replay rejections.
+Two layers of coverage:
+
+- `erc20-vault.test.ts` exercises the full lifecycle with the in-process mock MPC (`test-utils/signingUtils.ts`): deposit → sign → (simulated) broadcast → outcome → claim, withdrawal with success and refund paths, plus signature-forgery and replay rejections.
+- `erc20-vault.e2e.test.ts` emulates the real deployment with **two independent in-process Hardhat chains** — the source chain hosting ChainSignatures + the vault, and a destination chain (chainId 11155111) hosting a `TestERC20`. The MPC-signed transactions are broadcast and executed for real: tokens actually move between the derived deposit address, the vault address, and recipients; the outcome is extracted by re-simulating the call at the parent block (exactly how the MPC node builds `serializedOutput`); and the refund path is triggered by a transfer that genuinely returns `false` on-chain.

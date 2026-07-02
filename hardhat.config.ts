@@ -38,6 +38,14 @@ const config: HardhatUserConfig = {
       type: 'edr-simulated',
       chainType: 'l1',
     },
+    // Destination chain for the EVM <-> EVM example e2e: an independent
+    // in-process chain with Sepolia's chain id where the MPC-signed
+    // transactions are actually broadcast and executed.
+    hardhatDestination: {
+      type: 'edr-simulated',
+      chainType: 'l1',
+      chainId: 11155111,
+    },
     ...(process.env.SEPOLIA_RPC_URL
       ? {
           sepolia: {

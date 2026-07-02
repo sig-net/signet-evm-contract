@@ -92,9 +92,12 @@ pnpm build
 pnpm test
 ```
 
-The test suite runs against the in-process Hardhat network with a mock MPC signer (`test-utils/signingUtils.ts`) whose key derivation is golden-anchored to signet.js — every derived child key is cross-checked against `utils.cryptography.deriveChildPublicKey`, so the tests verify the exact signatures the real network would produce.
+The suite runs two layers, both fully local and in-process (no anvil or external nodes needed):
 
-`pnpm check` runs format check + typecheck + tests.
+1. **Unit/flow tests** (`test/*.test.ts`, `test/examples/erc20-vault.test.ts`) run against the in-process Hardhat network with a mock MPC signer (`test-utils/signingUtils.ts`) whose key derivation is golden-anchored to signet.js — every derived child key is cross-checked against `utils.cryptography.deriveChildPublicKey`, so the tests verify the exact signatures the real network would produce.
+2. **Two-chain e2e** (`test/examples/erc20-vault.e2e.test.ts`) emulates the full EVM ↔ EVM deployment with two independent in-process Hardhat networks: the source chain (chainId 31337, ChainSignatures + Erc20Vault) and a destination chain (chainId 11155111, a test ERC-20). The MPC-signed transactions are actually broadcast and executed on the destination chain, real token balances move, and the outcome is extracted the way the MPC node does it (re-simulating the call at the parent block to read the return data) before being reported back and claimed on the source chain — including a refund case driven by a genuine on-chain `false` transfer return.
+
+`pnpm check` runs format check + typecheck + tests. To point external tooling (e.g. a wallet or an anvil-style workflow) at these chains, `network.createServer('hardhatDestination')` can expose any configured network over HTTP/WS JSON-RPC.
 
 ## Deployment
 
