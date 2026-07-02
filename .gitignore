@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Hardhat
+artifacts/
+cache/
+typechain-types/
+coverage/
+coverage.json
+
+# Ignition
+ignition/deployments/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
