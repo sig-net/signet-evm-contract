@@ -83,7 +83,8 @@ function vaultRequestArgs(
 ): BidirectionalArgs {
   return {
     serializedTransaction,
-    caip2Id: `eip155:${DESTINATION_CHAIN_ID}`,
+    // The vault pins caip2 to "eip155:1" (TEST MODE — see Erc20Vault._caip2Id).
+    caip2Id: 'eip155:1',
     keyVersion: KEY_VERSION,
     path,
     algo: ALGO,
@@ -250,7 +251,7 @@ void describe('ERC20 Vault example (EVM <-> EVM)', () => {
       getAddress(d.vault.address)
     );
     assert.equal(signEvent.args.path, userPath);
-    assert.equal(signEvent.args.caip2Id, `eip155:${DESTINATION_CHAIN_ID}`);
+    assert.equal(signEvent.args.caip2Id, 'eip155:1');
 
     // The on-chain EVMTransactionLib RLP must match viem's serialization exactly,
     // transferring to the vault's destination-chain address.

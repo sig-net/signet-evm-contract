@@ -11,9 +11,8 @@ import { ChainSignatures } from "../contracts/ChainSignatures.sol";
 /**
  * @title ERC-20 cross-chain vault (EVM -> EVM example)
  * @dev Example consumer of the ChainSignatures contract implementing ERC-20
- * custody on a destination EVM chain, mirroring the Solana
- * `solana-contract-examples` ERC-20 vault (deposit / claim / withdraw /
- * complete-withdraw) and the Canton `signet-vault-v1` package.
+ * custody on a destination EVM chain (deposit / claim / withdraw /
+ * complete-withdraw).
  *
  * ## Key model
  *
@@ -28,12 +27,10 @@ import { ChainSignatures } from "../contracts/ChainSignatures.sol";
  *
  * `vaultEvmAddress` and `responseSigner` are derived off-chain (signet.js
  * `deriveChildPublicKey`) and pinned once via {initialize} — the predecessor
- * is this contract's address, which is only known after deployment. This
- * mirrors the Canton Vault, which stores `evmVaultAddress` and
- * `mpcResponseVerifyKey` at creation. (The Solana example instead derives
- * addresses on-chain via a secp256k1_recover trick; the EVM `ecrecover`
- * precompile only returns addresses, not curve points, so on-chain point
- * addition is not available without a full EC library.)
+ * is this contract's address, which is only known after deployment. Deriving
+ * them on-chain is not practical: the `ecrecover` precompile only returns
+ * addresses, not curve points, so on-chain point addition is unavailable
+ * without a full EC library.
  *
  * ## Deposit flow
  *
@@ -58,8 +55,7 @@ import { ChainSignatures } from "../contracts/ChainSignatures.sol";
  */
 contract Erc20Vault is Ownable {
     /// @dev Destination-chain EIP-1559 fee/nonce parameters supplied by the
-    /// caller (fetched off-chain), mirroring the Solana example's
-    /// `EvmTransactionParams`.
+    /// caller (fetched off-chain).
     struct EvmTransactionParams {
         uint64 chainId;
         uint64 nonce;
@@ -337,9 +333,15 @@ contract Erc20Vault is Ownable {
         return EVMTransactionLib.buildForSigning(evmTx);
     }
 
-    /// @dev CAIP-2 identifier for the destination chain, e.g. "eip155:11155111".
-    function _caip2Id(uint64 chainId) internal pure returns (string memory) {
-        return string.concat("eip155:", Strings.toString(chainId));
+    /// @dev CAIP-2 identifier advertised to the MPC.
+    /// TEST MODE (single-EVM DevNet): the MPC only accepts caip2 "eip155:1", so it is
+    /// pinned here while the transaction keeps its own chainId (e.g. Sepolia 11155111):
+    /// the signature stays valid on the destination chain and the MPC's eip155:1
+    /// indexer still observes it. caip2 is not a key-derivation input, so the signing
+    /// addresses are unchanged. PROD: derive it from the destination chainId instead:
+    ///   return string.concat("eip155:", Strings.toString(chainId));
+    function _caip2Id(uint64) internal pure returns (string memory) {
+        return "eip155:1";
     }
 
     /**
