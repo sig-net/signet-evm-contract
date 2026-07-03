@@ -21,26 +21,9 @@ The contract is an event bus plus a deposit sink: it performs no signature verif
 
 ## Bidirectional flow
 
-```text
-User                    EVM (source)            MPC Network        Destination chain
-  |                        |                         |                    |
-  | signBidirectional()    |                         |                    |
-  +----------------------->|                         |                    |
-  |                        |  SignBidirectional      |                    |
-  |                        +------------------------>|                    |
-  |                        |<---- respond() ---------+                    |
-  | Poll SignatureResponded|                         |                    |
-  |<-----------------------+                         |                    |
-  | Broadcast signed tx ---+-------------------------+------------------->|
-  |                        |                         |<-- observation ----+
-  |                        |<- respondBidirectional()|                    |
-  | Poll RespondBidirectional                        |                    |
-  |<-----------------------+                         |                    |
-```
+This contract is the **EVM source-chain implementation** of the Signet Sign Bidirectional protocol. The chain-agnostic lifecycle — flow phases, serialization schemas, error handling, and security properties — is documented once in the [Sign Bidirectional Flow](https://docs.sig.network/architecture/sign-bidirectional) docs; the sections below cover only the EVM-specific encoding and verification details.
 
-1. The user calls `signBidirectional` with the serialized unsigned destination-chain transaction (plus the two serialization schemas). The MPC signs the transaction hash and answers through `respond` (`SignatureResponded` event).
-2. The user reconstructs the signed transaction and broadcasts it to the destination chain — **the MPC does not broadcast**.
-3. The MPC observes the destination chain for confirmation, extracts the execution output (parsed per `outputDeserializationSchema`), serializes it per `respondSerializationSchema`, signs it, and calls `respondBidirectional` (`RespondBidirectional` event).
+On this contract the flow maps to: `signBidirectional` emits `SignBidirectional`; the MPC answers through `respond` (`SignatureResponded` event); the user reconstructs and broadcasts the signed transaction (**the MPC does not broadcast**); after observing the destination chain the MPC calls `respondBidirectional` (`RespondBidirectional` event) with the signed execution output.
 
 ## Request IDs
 
@@ -80,6 +63,8 @@ Failed destination-chain transactions are reported with the magic prefix `0xdead
 pnpm install
 ```
 
+The examples build destination-chain transactions with `EVMTransactionLib` from the [signet.sol](https://github.com/sig-net/signet.sol) package, currently consumed as a local dependency (`file:../signet.sol`) — clone that repo as a sibling directory before installing.
+
 ## Build
 
 ```bash
@@ -117,7 +102,7 @@ Production deployments should pass the MPC network's admin address and the requi
 contracts/ChainSignatures.sol   The signing contract (event bus + deposit sink)
 contracts/ProxyTestCaller.sol   Consumer-contract example (Solana proxy-test-cpi analog)
 examples/Erc20Vault.sol         Cross-chain ERC-20 vault example (EVM <-> EVM) — see examples/README.md
-examples/EVMTxBuilder.sol       On-chain EIP-1559 RLP builder (vendored from signet.sol)
+                                (EIP-1559 txs are built on-chain with EVMTransactionLib from the signet.sol package)
 test/                           node:test + viem specs, one per flow (test/examples/ covers the vault)
 test-utils/                     Mock MPC signer + request-id helpers (signet.js golden-checked)
 ignition/modules/               Hardhat Ignition deployment module
