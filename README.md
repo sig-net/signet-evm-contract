@@ -1,6 +1,6 @@
 # SigNet EVM contract
 
-This repository contains the Solidity contract that is deployed on EVM blockchains. It allows requesting signatures from the SigNet MPC network, supporting both simple signing (`sign`) and bidirectional cross-chain transactions (`signBidirectional`), following the same pattern as the [SigNet Solana program](https://github.com/sig-net/signet-solana-program) and the Canton Signer templates.
+This repository contains the Solidity contract that is deployed on EVM blockchains. It allows requesting signatures from the SigNet MPC network, supporting both simple signing (`sign`) and bidirectional cross-chain transactions (`signBidirectional`).
 
 ## Overview
 
@@ -34,7 +34,7 @@ Request IDs are computed off-chain, never by the contract:
 requestId = keccak256(abi.encode(
     sender, payload, path, keyVersion, block.chainid, algo, dest, params))
 
-// signBidirectional (packed, mirroring the Solana program):
+// signBidirectional (packed):
 requestId = keccak256(abi.encodePacked(
     sender, serializedTransaction, caip2Id, keyVersion, path, algo, dest, params))
 ```
@@ -100,7 +100,7 @@ Production deployments should pass the MPC network's admin address and the requi
 
 ```text
 contracts/ChainSignatures.sol   The signing contract (event bus + deposit sink)
-contracts/ProxyTestCaller.sol   Consumer-contract example (Solana proxy-test-cpi analog)
+contracts/ProxyTestCaller.sol   Consumer-contract example (proxy caller)
 examples/Erc20Vault.sol         Cross-chain ERC-20 vault example (EVM <-> EVM) — see examples/README.md
                                 (EIP-1559 txs are built on-chain with EVMTransactionLib from the signet.sol package)
 test/                           node:test + viem specs, one per flow (test/examples/ covers the vault)
