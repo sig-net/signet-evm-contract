@@ -15,10 +15,22 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
  *
  * ## Bidirectional flow
  *
- * The chain-agnostic lifecycle (flow phases, schemas, error convention,
- * key derivation) is documented once at
- * https://docs.sig.network/architecture/sign-bidirectional — the notes
- * below cover only the EVM-specific encoding and verification details.
+ * ```
+ * User                    EVM (source)            MPC Network        Destination chain
+ *   |                        |                         |                    |
+ *   | signBidirectional()    |                         |                    |
+ *   +----------------------->|                         |                    |
+ *   |                        |  SignBidirectional      |                    |
+ *   |                        +------------------------>|                    |
+ *   |                        |<---- respond() ---------+                    |
+ *   | Poll SignatureResponded|                         |                    |
+ *   |<-----------------------+                         |                    |
+ *   | Broadcast signed tx ---+-------------------------+------------------->|
+ *   |                        |                         |<-- observation ----+
+ *   |                        |<- respondBidirectional()|                    |
+ *   | Poll RespondBidirectional                        |                    |
+ *   |<-----------------------+                         |                    |
+ * ```
  *
  * ## Request IDs
  *
@@ -242,11 +254,13 @@ contract ChainSignatures is AccessControl {
 
     /**
      * @dev Initiate a bidirectional cross-chain transaction with execution
-     * result callback — the primary entry point for cross-chain transactions.
-     * The MPC signs and answers via {respond}; the caller broadcasts the signed
-     * transaction (the MPC does NOT broadcast); the execution result arrives
-     * via {respondBidirectional}. Full lifecycle:
-     * https://docs.sig.network/architecture/sign-bidirectional
+     * result callback. The primary entry point for cross-chain transactions:
+     * 1. User submits the unsigned destination-chain transaction — the MPC signs
+     *    and responds via {respond}
+     * 2. User broadcasts the signed transaction to the destination chain
+     *    (the MPC does NOT broadcast)
+     * 3. The MPC observes the execution on the destination chain
+     * 4. The MPC returns the execution result via {respondBidirectional}
      * @param _request The bidirectional request details.
      */
     function signBidirectional(SignBidirectionalRequest memory _request) external payable {
