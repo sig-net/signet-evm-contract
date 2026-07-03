@@ -63,7 +63,7 @@ Failed destination-chain transactions are reported with the magic prefix `0xdead
 pnpm install
 ```
 
-The examples build destination-chain transactions with `EVMTransactionLib` from the [signet.sol](https://github.com/sig-net/signet.sol) package, currently consumed as a local dependency (`file:../signet.sol`) — clone that repo as a sibling directory before installing.
+The examples build destination-chain transactions with `EVMTransactionLib` from the [signet.sol](https://github.com/sig-net/signet.sol) package, currently consumed as a local dependency (`file:../signet.sol`) — clone that repo as a sibling directory before installing. When the sibling repo changes, re-run `pnpm update signet.sol` so the copy inside `node_modules` stays in sync.
 
 ## Build
 

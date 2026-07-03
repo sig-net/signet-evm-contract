@@ -4,9 +4,9 @@ pragma solidity ^0.8.20;
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { EVMTransactionLib } from "signet.sol/contracts/evm/EVMTransactionLib.sol";
 
 import { ChainSignatures } from "../contracts/ChainSignatures.sol";
-import { EVMTxBuilder } from "./EVMTxBuilder.sol";
 
 /**
  * @title ERC-20 cross-chain vault (EVM -> EVM example)
@@ -320,19 +320,21 @@ contract Erc20Vault is Ownable {
         uint128 amount,
         EvmTransactionParams calldata txParams
     ) internal pure returns (bytes memory) {
-        EVMTxBuilder.EVMTransaction memory evmTx = EVMTxBuilder.EVMTransaction({
+        // EVMTransactionLib encodes `to == address(0)` as contract creation,
+        // which must not be expressible through the vault.
+        if (erc20Address == address(0)) revert InvalidAddress();
+        EVMTransactionLib.EVMTransaction memory evmTx = EVMTransactionLib.EVMTransaction({
             chainId: txParams.chainId,
             nonce: txParams.nonce,
+            maxPriorityFeePerGas: txParams.maxPriorityFeePerGas,
+            maxFeePerGas: txParams.maxFeePerGas,
+            gasLimit: txParams.gasLimit,
             to: erc20Address,
-            hasTo: true,
             value: txParams.value,
             input: abi.encodeCall(IERC20.transfer, (recipient, amount)),
-            gasLimit: txParams.gasLimit,
-            maxFeePerGas: txParams.maxFeePerGas,
-            maxPriorityFeePerGas: txParams.maxPriorityFeePerGas,
-            accessList: new EVMTxBuilder.AccessListEntry[](0)
+            accessList: new EVMTransactionLib.AccessListEntry[](0)
         });
-        return EVMTxBuilder.serializeEvmTxUnsigned(evmTx);
+        return EVMTransactionLib.buildForSigning(evmTx);
     }
 
     /// @dev CAIP-2 identifier for the destination chain, e.g. "eip155:11155111".

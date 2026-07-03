@@ -23,7 +23,7 @@ Every MPC child key uses **this contract's address as the KDF predecessor** (the
 ```text
 User funds deposit address (destination chain)
   └─ depositErc20(erc20, amount, txParams)          [source chain]
-       ├─ builds transfer(vaultEvmAddress, amount) RLP on-chain (EVMTxBuilder)
+       ├─ builds transfer(vaultEvmAddress, amount) RLP on-chain (EVMTransactionLib)
        ├─ records PendingDeposit[requestId]          (single-use)
        └─ ChainSignatures.signBidirectional{value}   (path = user address)
   MPC signs → user broadcasts to destination chain → MPC observes outcome
@@ -50,7 +50,7 @@ completeWithdrawErc20(requestId, output, signature)
 
 ### On-chain transaction building
 
-`EVMTxBuilder.sol` (vendored from [signet.sol](https://github.com/sig-net/signet.sol), where it is validated against viem byte-for-byte) RLP-encodes the unsigned EIP-1559 destination transaction on-chain — the Solidity analog of what `signet-rs` does inside the Solana example program. The example test re-verifies this: the emitted `serializedTransaction` must equal viem's `serializeTransaction` output exactly.
+`EVMTransactionLib` (from the [signet.sol](https://github.com/sig-net/signet.sol) package, where it is validated against viem byte-for-byte) RLP-encodes the unsigned EIP-1559 destination transaction on-chain — the Solidity analog of what `signet-rs` does inside the Solana example program. The example test re-verifies this: the emitted `serializedTransaction` must equal viem's `serializeTransaction` output exactly.
 
 ### Request IDs
 
