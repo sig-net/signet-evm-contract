@@ -1,4 +1,4 @@
-# SigNet EVM program
+# SigNet EVM contract
 
 This repository contains the Solidity contract that is deployed on EVM blockchains. It allows requesting signatures from the SigNet MPC network, supporting both simple signing (`sign`) and bidirectional cross-chain transactions (`signBidirectional`), following the same pattern as the [SigNet Solana program](https://github.com/sig-net/signet-solana-program) and the Canton Signer templates.
 

@@ -68,7 +68,7 @@ export interface SignatureStruct {
 
 /** Test-only MPC root private key (deterministic, never use in production). */
 export const TEST_ROOT_PRIVATE_KEY: Hex = keccak256(
-  stringToHex('signet-evm-program test root')
+  stringToHex('signet-evm-contract test root')
 );
 
 /** v2 derivation requires keyVersion >= 1. */
