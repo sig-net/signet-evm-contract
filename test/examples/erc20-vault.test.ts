@@ -11,6 +11,7 @@ import {
   parseGwei,
   recoverTransactionAddress,
   serializeTransaction,
+  zeroAddress,
   type Address,
   type Hex,
 } from 'viem';
@@ -129,6 +130,38 @@ async function deployVault() {
 
 type VaultDeployment = Awaited<ReturnType<typeof deployVault>>;
 
+const ABI_BOOL_FALSE: Hex = `0x${'0'.repeat(64)}`;
+
+/** MPC outcome signature over keccak256(requestId || serializedOutput). */
+function outcomeSignature(
+  d: VaultDeployment,
+  requestId: Hex,
+  serializedOutput: Hex
+) {
+  return mpcSignDigest(
+    d.vault.address,
+    RESPONSE_KEY_PATH,
+    computeResponseHash(requestId, serializedOutput)
+  );
+}
+
+/** Initiate a deposit (without claiming) and return its request id. */
+async function initiateDeposit(d: VaultDeployment): Promise<Hex> {
+  const txHash = await d.vault.write.depositErc20(
+    [ERC20_ADDRESS, DEPOSIT_AMOUNT, buildTxParams(0n)],
+    { value: SIGNATURE_DEPOSIT, account: d.requester.account }
+  );
+  const receipt = await d.publicClient.waitForTransactionReceipt({
+    hash: txHash,
+  });
+  const [initiated] = parseEventLogs({
+    abi: d.vault.abi,
+    logs: receipt.logs,
+    eventName: 'DepositInitiated',
+  });
+  return initiated.args.requestId;
+}
+
 /**
  * Run a full deposit lifecycle: request, MPC tx signature, outcome, claim.
  * Returns the deposit request id.
@@ -219,7 +252,7 @@ void describe('ERC20 Vault example (EVM <-> EVM)', () => {
     assert.equal(signEvent.args.path, userPath);
     assert.equal(signEvent.args.caip2Id, `eip155:${DESTINATION_CHAIN_ID}`);
 
-    // The on-chain EVMTxBuilder RLP must match viem's serialization exactly,
+    // The on-chain EVMTransactionLib RLP must match viem's serialization exactly,
     // transferring to the vault's destination-chain address.
     const destinationTx = expectedTransferTx(
       d.vaultEvmAddress,
@@ -501,6 +534,300 @@ void describe('ERC20 Vault example (EVM <-> EVM)', () => {
       ),
       d.vault,
       'InsufficientBalance'
+    );
+  });
+
+  void it('Guards initialization: owner-only, non-zero addresses, one-time', async () => {
+    const { viem } = await network.getOrCreate();
+    const [admin, requester] = await viem.getWalletClients();
+    const chainSignatures = await viem.deployContract('ChainSignatures', [
+      admin.account.address,
+      SIGNATURE_DEPOSIT,
+    ]);
+    const vault = await viem.deployContract('Erc20Vault', [
+      chainSignatures.address,
+      admin.account.address,
+    ]);
+    const vaultEvmAddress = deriveChildAddress(vault.address, ROOT_PATH);
+    const responseSigner = deriveChildAddress(vault.address, RESPONSE_KEY_PATH);
+
+    // Only the owner may pin the derived addresses.
+    await viem.assertions.revertWithCustomError(
+      vault.write.initialize([vaultEvmAddress, responseSigner], {
+        account: requester.account,
+      }),
+      vault,
+      'OwnableUnauthorizedAccount'
+    );
+
+    // Zero addresses are rejected for both keys.
+    await viem.assertions.revertWithCustomError(
+      vault.write.initialize([zeroAddress, responseSigner]),
+      vault,
+      'InvalidAddress'
+    );
+    await viem.assertions.revertWithCustomError(
+      vault.write.initialize([vaultEvmAddress, zeroAddress]),
+      vault,
+      'InvalidAddress'
+    );
+
+    // Pinning is one-time.
+    await vault.write.initialize([vaultEvmAddress, responseSigner]);
+    await viem.assertions.revertWithCustomError(
+      vault.write.initialize([vaultEvmAddress, responseSigner]),
+      vault,
+      'AlreadyInitialized'
+    );
+  });
+
+  void it('Rejects deposits of the zero token address', async () => {
+    const d = await deployVault();
+
+    // EVMTransactionLib encodes to == 0 as contract creation, which must not
+    // be expressible through the vault.
+    await d.viem.assertions.revertWithCustomError(
+      d.vault.write.depositErc20(
+        [zeroAddress, DEPOSIT_AMOUNT, buildTxParams(0n)],
+        { value: SIGNATURE_DEPOSIT, account: d.requester.account }
+      ),
+      d.vault,
+      'InvalidAddress'
+    );
+  });
+
+  void it('Rejects duplicate requests while the identical request is pending', async () => {
+    const d = await deployVault();
+
+    // Identical deposit params (same nonce) produce the same request id.
+    await initiateDeposit(d);
+    await d.viem.assertions.revertWithCustomError(
+      d.vault.write.depositErc20(
+        [ERC20_ADDRESS, DEPOSIT_AMOUNT, buildTxParams(0n)],
+        { value: SIGNATURE_DEPOSIT, account: d.requester.account }
+      ),
+      d.vault,
+      'DuplicateRequest'
+    );
+  });
+
+  void it('Rejects duplicate withdrawal requests (balance debit is rolled back)', async () => {
+    const d = await deployVault();
+    await depositAndClaim(d);
+
+    // Two half-balance withdrawals with identical destination params collide
+    // on the same request id; the second reverts and its debit unwinds.
+    const half = DEPOSIT_AMOUNT / 2n;
+    await d.vault.write.withdrawErc20(
+      [ERC20_ADDRESS, half, d.responder.account.address, buildTxParams(0n)],
+      { value: SIGNATURE_DEPOSIT, account: d.requester.account }
+    );
+    await d.viem.assertions.revertWithCustomError(
+      d.vault.write.withdrawErc20(
+        [ERC20_ADDRESS, half, d.responder.account.address, buildTxParams(0n)],
+        { value: SIGNATURE_DEPOSIT, account: d.requester.account }
+      ),
+      d.vault,
+      'DuplicateRequest'
+    );
+    assert.equal(
+      await d.vault.read.userBalances([
+        d.requester.account.address,
+        ERC20_ADDRESS,
+      ]),
+      DEPOSIT_AMOUNT - half
+    );
+  });
+
+  void it('Rejects withdrawals to the zero recipient', async () => {
+    const d = await deployVault();
+
+    await d.viem.assertions.revertWithCustomError(
+      d.vault.write.withdrawErc20(
+        [ERC20_ADDRESS, DEPOSIT_AMOUNT, zeroAddress, buildTxParams(0n)],
+        { value: SIGNATURE_DEPOSIT, account: d.requester.account }
+      ),
+      d.vault,
+      'InvalidAddress'
+    );
+  });
+
+  void it('Rejects claims of failed deposits, keeping the pending entry intact', async () => {
+    const d = await deployVault();
+    const requestId = await initiateDeposit(d);
+
+    // Failed destination transaction: 0xdeadbeef prefix.
+    const failedOutput = concatHex([ERROR_PREFIX, ABI_BOOL_TRUE]);
+    await d.viem.assertions.revertWithCustomError(
+      d.vault.write.claimErc20(
+        [requestId, failedOutput, outcomeSignature(d, requestId, failedOutput)],
+        { account: d.responder.account }
+      ),
+      d.vault,
+      'DepositFailed'
+    );
+
+    // Transfer executed but returned false.
+    await d.viem.assertions.revertWithCustomError(
+      d.vault.write.claimErc20(
+        [
+          requestId,
+          ABI_BOOL_FALSE,
+          outcomeSignature(d, requestId, ABI_BOOL_FALSE),
+        ],
+        { account: d.responder.account }
+      ),
+      d.vault,
+      'TransferReturnedFalse'
+    );
+
+    // Malformed outputs: wrong length, and a word that is neither 0 nor 1.
+    const shortOutput: Hex = `0x${'00'.repeat(31)}`;
+    await d.viem.assertions.revertWithCustomError(
+      d.vault.write.claimErc20(
+        [requestId, shortOutput, outcomeSignature(d, requestId, shortOutput)],
+        { account: d.responder.account }
+      ),
+      d.vault,
+      'InvalidOutput'
+    );
+    const twoOutput: Hex = `0x${'2'.padStart(64, '0')}`;
+    await d.viem.assertions.revertWithCustomError(
+      d.vault.write.claimErc20(
+        [requestId, twoOutput, outcomeSignature(d, requestId, twoOutput)],
+        { account: d.responder.account }
+      ),
+      d.vault,
+      'InvalidOutput'
+    );
+
+    // A recovery id outside {0, 1} is rejected before ecrecover.
+    const badRecovery = {
+      ...outcomeSignature(d, requestId, ABI_BOOL_TRUE),
+      recoveryId: 2,
+    };
+    await d.viem.assertions.revertWithCustomError(
+      d.vault.write.claimErc20([requestId, ABI_BOOL_TRUE, badRecovery], {
+        account: d.responder.account,
+      }),
+      d.vault,
+      'InvalidSignature'
+    );
+
+    // Every rejected claim rolled back, so the pending entry survives and a
+    // genuine success outcome still credits the balance.
+    await d.vault.write.claimErc20(
+      [requestId, ABI_BOOL_TRUE, outcomeSignature(d, requestId, ABI_BOOL_TRUE)],
+      { account: d.responder.account }
+    );
+    assert.equal(
+      await d.vault.read.userBalances([
+        d.requester.account.address,
+        ERC20_ADDRESS,
+      ]),
+      DEPOSIT_AMOUNT
+    );
+  });
+
+  void it('Rejects withdrawal completions with forged signatures or replayed outcomes', async () => {
+    const d = await deployVault();
+    await depositAndClaim(d);
+
+    const txHash = await d.vault.write.withdrawErc20(
+      [
+        ERC20_ADDRESS,
+        DEPOSIT_AMOUNT,
+        d.responder.account.address,
+        buildTxParams(0n),
+      ],
+      { value: SIGNATURE_DEPOSIT, account: d.requester.account }
+    );
+    const receipt = await d.publicClient.waitForTransactionReceipt({
+      hash: txHash,
+    });
+    const [initiated] = parseEventLogs({
+      abi: d.vault.abi,
+      logs: receipt.logs,
+      eventName: 'WithdrawalInitiated',
+    });
+    const requestId = initiated.args.requestId;
+
+    // Outcome signed with the vault root key instead of the response key.
+    const forged = mpcSignDigest(
+      d.vault.address,
+      ROOT_PATH,
+      computeResponseHash(requestId, ABI_BOOL_TRUE)
+    );
+    await d.viem.assertions.revertWithCustomError(
+      d.vault.write.completeWithdrawErc20([requestId, ABI_BOOL_TRUE, forged], {
+        account: d.responder.account,
+      }),
+      d.vault,
+      'InvalidSignature'
+    );
+
+    // Genuine outcome completes; the pending entry is single-use.
+    await d.vault.write.completeWithdrawErc20(
+      [requestId, ABI_BOOL_TRUE, outcomeSignature(d, requestId, ABI_BOOL_TRUE)],
+      { account: d.responder.account }
+    );
+    await d.viem.assertions.revertWithCustomError(
+      d.vault.write.completeWithdrawErc20(
+        [
+          requestId,
+          ABI_BOOL_TRUE,
+          outcomeSignature(d, requestId, ABI_BOOL_TRUE),
+        ],
+        { account: d.responder.account }
+      ),
+      d.vault,
+      'UnknownRequest'
+    );
+  });
+
+  void it('Refunds a withdrawal whose transfer returned false', async () => {
+    const d = await deployVault();
+    await depositAndClaim(d);
+
+    const txHash = await d.vault.write.withdrawErc20(
+      [
+        ERC20_ADDRESS,
+        DEPOSIT_AMOUNT,
+        d.responder.account.address,
+        buildTxParams(0n),
+      ],
+      { value: SIGNATURE_DEPOSIT, account: d.requester.account }
+    );
+    const receipt = await d.publicClient.waitForTransactionReceipt({
+      hash: txHash,
+    });
+    const [initiated] = parseEventLogs({
+      abi: d.vault.abi,
+      logs: receipt.logs,
+      eventName: 'WithdrawalInitiated',
+    });
+    const requestId = initiated.args.requestId;
+
+    // The destination transfer executed but returned false: refund.
+    await d.viem.assertions.emitWithArgs(
+      d.vault.write.completeWithdrawErc20(
+        [
+          requestId,
+          ABI_BOOL_FALSE,
+          outcomeSignature(d, requestId, ABI_BOOL_FALSE),
+        ],
+        { account: d.responder.account }
+      ),
+      d.vault,
+      'WithdrawalCompleted',
+      [requestId, getAddress(d.requester.account.address), true]
+    );
+    assert.equal(
+      await d.vault.read.userBalances([
+        d.requester.account.address,
+        ERC20_ADDRESS,
+      ]),
+      DEPOSIT_AMOUNT
     );
   });
 });
