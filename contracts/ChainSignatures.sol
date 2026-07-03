@@ -15,6 +15,9 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
  *
  * ## Bidirectional flow
  *
+ * Chain-agnostic lifecycle reference (shared by all Signet source chains):
+ * https://docs.sig.network/architecture/sign-bidirectional
+ *
  * ```
  * User                    EVM (source)            MPC Network        Destination chain
  *   |                        |                         |                    |
@@ -261,6 +264,9 @@ contract ChainSignatures is AccessControl {
      *    (the MPC does NOT broadcast)
      * 3. The MPC observes the execution on the destination chain
      * 4. The MPC returns the execution result via {respondBidirectional}
+     *
+     * Chain-agnostic lifecycle reference:
+     * https://docs.sig.network/architecture/sign-bidirectional
      * @param _request The bidirectional request details.
      */
     function signBidirectional(SignBidirectionalRequest memory _request) external payable {

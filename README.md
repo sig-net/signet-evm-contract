@@ -21,9 +21,28 @@ The contract is an event bus plus a deposit sink: it performs no signature verif
 
 ## Bidirectional flow
 
-This contract is the **EVM source-chain implementation** of the Signet Sign Bidirectional protocol. The chain-agnostic lifecycle — flow phases, serialization schemas, error handling, and security properties — is documented once in the [Sign Bidirectional Flow](https://docs.sig.network/architecture/sign-bidirectional) docs; the sections below cover only the EVM-specific encoding and verification details.
+> The chain-agnostic version of this flow — shared by all Signet source chains — is documented at [Sign Bidirectional Flow](https://docs.sig.network/architecture/sign-bidirectional). This README documents it in depth with the EVM specifics.
 
-On this contract the flow maps to: `signBidirectional` emits `SignBidirectional`; the MPC answers through `respond` (`SignatureResponded` event); the user reconstructs and broadcasts the signed transaction (**the MPC does not broadcast**); after observing the destination chain the MPC calls `respondBidirectional` (`RespondBidirectional` event) with the signed execution output.
+```text
+User                    EVM (source)            MPC Network        Destination chain
+  |                        |                         |                    |
+  | signBidirectional()    |                         |                    |
+  +----------------------->|                         |                    |
+  |                        |  SignBidirectional      |                    |
+  |                        +------------------------>|                    |
+  |                        |<---- respond() ---------+                    |
+  | Poll SignatureResponded|                         |                    |
+  |<-----------------------+                         |                    |
+  | Broadcast signed tx ---+-------------------------+------------------->|
+  |                        |                         |<-- observation ----+
+  |                        |<- respondBidirectional()|                    |
+  | Poll RespondBidirectional                        |                    |
+  |<-----------------------+                         |                    |
+```
+
+1. The user calls `signBidirectional` with the serialized unsigned destination-chain transaction (plus the two serialization schemas). The MPC signs the transaction hash and answers through `respond` (`SignatureResponded` event).
+2. The user reconstructs the signed transaction and broadcasts it to the destination chain — **the MPC does not broadcast**.
+3. The MPC observes the destination chain for confirmation, extracts the execution output (parsed per `outputDeserializationSchema`), serializes it per `respondSerializationSchema`, signs it, and calls `respondBidirectional` (`RespondBidirectional` event).
 
 ## Request IDs
 
