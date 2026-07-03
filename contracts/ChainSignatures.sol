@@ -8,11 +8,10 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
  * @dev Contract for requesting ECDSA signatures from the SigNet MPC network,
  * supporting both simple signing and bidirectional cross-chain transactions.
  *
- * It mirrors the SigNet Solana program (`signet-solana-program`) and the Canton
- * Signer templates (`signet-signer-v1`): the contract is an event bus plus a
- * deposit sink. It performs no signature verification itself — MPC responses
- * are delivered as events and consumers MUST verify them off-chain (or in
- * their own consumer contracts) against the expected derived MPC key.
+ * The contract is an event bus plus a deposit sink. It performs no signature
+ * verification itself — MPC responses are delivered as events and consumers
+ * MUST verify them off-chain (or in their own consumer contracts) against the
+ * expected derived MPC key.
  *
  * ## Bidirectional flow
  *
@@ -27,7 +26,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
  *
  * - `sign`:
  *   `keccak256(abi.encode(sender, payload, path, keyVersion, block.chainid, algo, dest, params))`
- * - `signBidirectional` (packed, mirroring the Solana program):
+ * - `signBidirectional` (packed):
  *   `keccak256(abi.encodePacked(sender, serializedTransaction, caip2Id, keyVersion, path, algo, dest, params))`
  *
  * ## Response signature verification (bidirectional)
@@ -35,8 +34,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
  * The execution-result signature is made over
  * `keccak256(abi.encodePacked(requestId, serializedOutput))` with the MPC
  * child key derived from the requester using the constant derivation path
- * `"ethereum response key"` (analogous to `"solana response key"` and
- * `"canton response key"` on the other source chains).
+ * `"ethereum response key"`.
  *
  * Failed destination-chain transactions are reported with the magic prefix
  * `0xdeadbeef` at the start of `serializedOutput`.

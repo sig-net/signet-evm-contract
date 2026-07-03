@@ -1,6 +1,6 @@
 # Examples
 
-Example consumer contracts built on the SigNet ChainSignatures contract, mirroring the [solana-contract-examples](https://github.com/sig-net/solana-contract-examples) vault program for the EVM → EVM case.
+Example consumer contracts built on the SigNet ChainSignatures contract.
 
 ## Erc20Vault — cross-chain ERC-20 custody (EVM ↔ EVM)
 
@@ -16,7 +16,7 @@ Every MPC child key uses **this contract's address as the KDF predecessor** (the
 | Vault address            | `"root"`                  | Custodies all deposited ERC-20 on the destination chain |
 | Response verifier        | `"ethereum response key"` | Signs the MPC's execution-outcome reports               |
 
-`vaultEvmAddress` and `responseSigner` are derived off-chain (signet.js `deriveChildPublicKey`) and pinned once via `initialize` — the predecessor is the contract address, which only exists after deployment. This mirrors the Canton vault (which stores `evmVaultAddress` + `mpcResponseVerifyKey` at creation). The Solana example derives addresses on-chain through a `secp256k1_recover` EC-multiplication trick; the EVM `ecrecover` precompile returns only addresses (not curve points), so on-chain derivation would require a full EC library.
+`vaultEvmAddress` and `responseSigner` are derived off-chain (signet.js `deriveChildPublicKey`) and pinned once via `initialize` — the predecessor is the contract address, which only exists after deployment. Deriving them on-chain is not practical: the `ecrecover` precompile returns only addresses (not curve points), so on-chain derivation would require a full EC library.
 
 ### Deposit
 
@@ -50,7 +50,7 @@ completeWithdrawErc20(requestId, output, signature)
 
 ### On-chain transaction building
 
-`EVMTransactionLib` (from the [signet.sol](https://github.com/sig-net/signet.sol) package, where it is validated against viem byte-for-byte) RLP-encodes the unsigned EIP-1559 destination transaction on-chain — the Solidity analog of what `signet-rs` does inside the Solana example program. The example test re-verifies this: the emitted `serializedTransaction` must equal viem's `serializeTransaction` output exactly.
+`EVMTransactionLib` (from the [signet.sol](https://github.com/sig-net/signet.sol) package, where it is validated against viem byte-for-byte) RLP-encodes the unsigned EIP-1559 destination transaction on-chain. The example test re-verifies this: the emitted `serializedTransaction` must equal viem's `serializeTransaction` output exactly.
 
 ### Request IDs
 
