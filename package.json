@@ -1,5 +1,5 @@
 {
-  "name": "signet-evm-program",
+  "name": "signet-evm-contract",
   "version": "1.0.0",
   "private": true,
   "type": "module",
